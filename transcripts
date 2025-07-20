@@ -1,0 +1,82 @@
+from pytube import YouTube
+from moviepy.editor import concatenate_audioclips, AudioFileClip
+import os
+import re
+import whisper
+from faster_whisper import WhisperModel
+
+def save_file(filepath, content):
+    with open(filepath, 'w', encoding='utf-8') as outfile:
+        outfile.write(content)
+        print(f"Content saved to '{filepath}' successfully.")
+
+# List of YouTube video URLs
+video_urls = ['https://www.youtube.com/watch?v=GOgZe8Ur9ho', 'https://www.youtube.com/watch?v=LG0IsQ20EoU', 'https://www.youtube.com/watch?v=']
+
+# Directory to save downloaded mp3 files
+download_dir = 'downloads'
+os.makedirs(download_dir, exist_ok=True)
+
+# Sanitize filename to remove invalid characters
+def sanitize_filename(filename):
+    # Remove invalid file name characters
+    return re.sub(r'[\\/*?:"<>|]', '', filename)
+
+# Function to download YouTube videos as mp3
+def download_videos_as_mp3(urls, path):
+    audio_files = []
+    for url in urls:
+        try:
+            yt = YouTube(url)
+            audio_stream = yt.streams.get_audio_only()
+            sanitized_title = sanitize_filename(yt.title)
+            filename = sanitized_title + ".mp3"
+            audio_stream.download(output_path=path, filename=filename)
+            print(f"Downloaded '{filename}' successfully.")
+            audio_files.append(os.path.join(path, filename))
+        except Exception as e:
+            print(f"Error downloading {url}: {e}")
+    return audio_files
+
+# Download the videos as mp3
+downloaded_files = download_videos_as_mp3(video_urls, download_dir)
+
+# Function to merge mp3 files into one
+def merge_mp3_files(files, output_file):
+    clips = [AudioFileClip(file) for file in files]
+    final_clip = concatenate_audioclips(clips)
+    final_clip.write_audiofile(output_file)
+    print(f"Merged files into '{output_file}' successfully.")
+
+def transcribe_with_whisper(audio_file_path):
+    # Load the model
+    model = whisper.load_model("medium.en")  # You can choose different model sizes like 'tiny', 'base', 'small', 'medium', 'large'
+
+    # Transcribe the audio
+    result = model.transcribe(audio_file_path)
+    return result["text"]
+
+def transcribe_with_faster_whisper(audio_file_path):
+    # Model identifier includes both the size and version
+    model_identifier = "medium.en"  # Adjust this based on your needs and resources
+
+    # Initialize the Whisper model
+    # Note: Adjust `device` and `compute_type` based on your setup and requirements
+    model = WhisperModel(model_identifier, device="cuda", compute_type="float16")
+
+    # Transcribe the audio file
+    segments, info = model.transcribe(audio_file_path, beam_size=5)
+
+    # Compile all segments into a single transcription text
+    transcription = " ".join(segment.text for segment in segments)
+
+    return transcription
+
+# Merge the downloaded mp3 files into one
+output_mp3 = 'final_merged_audio2.mp3'
+merge_mp3_files(downloaded_files, output_mp3)
+
+audio_file = "C:/Users/kris/_Python/fastwh/final_merged_audio2.mp3"
+user_input = transcribe_with_faster_whisper(audio_file)
+print(user_input)
+save_file("fpl.txt", user_input)
